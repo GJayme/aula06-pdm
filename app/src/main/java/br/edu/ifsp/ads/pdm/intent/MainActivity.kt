@@ -1,25 +1,32 @@
 package br.edu.ifsp.ads.pdm.intent
 
+import android.Manifest.permission.CALL_PHONE
 import android.content.Intent
+import android.content.Intent.*
+import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.net.Uri
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.activity.result.ActivityResult
-import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import br.edu.ifsp.ads.pdm.intent.databinding.ActivityMainBinding
+import java.util.jar.Manifest
 
 class MainActivity : AppCompatActivity() {
     private lateinit var activityMainBinding: ActivityMainBinding
     private lateinit var outraActivityResultLauncher: ActivityResultLauncher<Intent>
+    private lateinit var requisicaoPermissaoActivityResultLauncher: ActivityResultLauncher<String>
+    private lateinit var selecionarImagemActivityResultLauncher: ActivityResultLauncher<Intent>
+    private lateinit var escolherApplicativoActivityResultLauncher: ActivityResultLauncher<Intent>
 
     companion object {
         val PARAMETRO = "PARAMETRO"
-//        val OUTRA_ACTIVITY_REQUEST_CODE = 0
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +47,32 @@ class MainActivity : AppCompatActivity() {
 
         }
 
+        requisicaoPermissaoActivityResultLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { concedida ->
+            if (!concedida) {
+                //requisitar permissão
+                requisitarPermissaoLigacao()
+            } else {
+                chamarTelefone()
+            }
+        }
+
+        selecionarImagemActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { resultado ->
+            visualizarImagem(resultado)
+        }
+
+        escolherApplicativoActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { resultado ->
+            visualizarImagem(resultado)
+        }
+
         Log.v("${getString(R.string.app_name)}/${localClassName}", "onCreate: Início CC")
+    }
+
+    private fun visualizarImagem(resultado: ActivityResult) {
+        if (resultado.resultCode == RESULT_OK) {
+            val visualizarImagemIntent = Intent(ACTION_VIEW)
+            visualizarImagemIntent.data = resultado.data?.data
+            startActivity(visualizarImagemIntent)
+        }
     }
 
     override fun onStart() {
@@ -80,34 +112,53 @@ class MainActivity : AppCompatActivity() {
                 val outraActivityIntent = Intent(this, OutraActivity::class.java)
                 outraActivityIntent.putExtra(PARAMETRO, activityMainBinding.parametroEt.text.toString())
 
-                //Passagem usando Bundle
-//                val parametrosBundle: Bundle = Bundle()
-//                parametrosBundle.putString(PARAMETRO, activityMainBinding.parametroEt.text.toString())
-//                outraActivityIntent.putExtras(parametrosBundle)
-
-//                startActivity(outraActivityIntent)
-//                startActivityForResult(outraActivityIntent, OUTRA_ACTIVITY_REQUEST_CODE)
                 outraActivityResultLauncher.launch(outraActivityIntent)
                 true
             }
            R.id.viewMi -> {
                //Abrir navegador
+               //Url precisa conter http ou https
+               var url: String = activityMainBinding.parametroEt.text.toString().let {
+                   if (!it.lowercase().contains("http[s]?".toRegex())) "http://${it}" else it
+               }
+               val siteIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+               startActivity(siteIntent)
                true
            }
            R.id.callMi -> {
                //Fazer uma chamada
+               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                   if (checkSelfPermission(CALL_PHONE) != PERMISSION_GRANTED) {
+                       //requisito a permissão para o usuário
+                        requisitarPermissaoLigacao()
+                   } else {
+                       //chama o discador
+                       chamarTelefone()
+                   }
+               } else {
+                   //chama o discador
+                   chamarTelefone()
+               }
                true
            }
            R.id.dialMi -> {
                //Abrir o discador
+               val discadorIntent = Intent(ACTION_DIAL)
+               discadorIntent.data = Uri.parse("tel: ${activityMainBinding.parametroEt.text}")
+               startActivity(discadorIntent)
                true
            }
            R.id.pickMi -> {
                //Pegar uma imagem
+               selecionarImagemActivityResultLauncher.launch(prepararImagemIntent())
                true
            }
            R.id.chooserMi -> {
-               //Abrir App
+               //Abrir lista de aplicativos
+               val escolherActivityIntent = Intent(ACTION_CHOOSER)
+               escolherActivityIntent.putExtra(EXTRA_INTENT, prepararImagemIntent())
+               escolherActivityIntent.putExtra(EXTRA_TITLE, "Escolha um aplicativo")
+               escolherApplicativoActivityResultLauncher.launch(escolherActivityIntent)
                true
            }
             else -> {
@@ -116,12 +167,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-//        super.onActivityResult(requestCode, resultCode, data)
-//        if (requestCode == OUTRA_ACTIVITY_REQUEST_CODE && resultCode == RESULT_OK) {
-//            data?.getStringExtra(PARAMETRO).let {
-//                activityMainBinding.retornoTv.text = it
-//            }
-//        }
-//    }
+    private fun prepararImagemIntent(): Intent {
+        val pegarImagemIntent = Intent(ACTION_PICK)
+        val diretorio = this.getExternalFilesDir(Environment.DIRECTORY_PICTURES)?.path
+        pegarImagemIntent.setDataAndType(Uri.parse(diretorio), "image/*")
+        return pegarImagemIntent
+    }
+
+    private fun requisitarPermissaoLigacao() {
+        requisicaoPermissaoActivityResultLauncher.launch(CALL_PHONE)
+    }
+
+
+    private fun chamarTelefone() {
+        val chamarIntent = Intent()
+        chamarIntent.action = Intent.ACTION_CALL
+        chamarIntent.data = Uri.parse("tel: ${activityMainBinding.parametroEt.text}")
+        startActivity(chamarIntent)
+    }
 }

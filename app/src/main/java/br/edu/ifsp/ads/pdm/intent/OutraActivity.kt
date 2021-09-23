@@ -18,18 +18,6 @@ class OutraActivity : AppCompatActivity() {
         supportActionBar?.title = "Outra Activity"
         supportActionBar?.subtitle = "Recebe e retorna um valor"
 
-//        val parametrosBundle = intent.extras
-//        if (parametrosBundle != null) {
-//            val recebido = parametrosBundle.getString(MainActivity.PARAMETRO, "")
-//            activityOutraBinding.recebidoTv.text = recebido
-//        }
-
-        //Recuperando de um Bundle
-//        intent.extras?.getString(MainActivity.PARAMETRO, "").let {
-//            activityOutraBinding.recebidoTv.text = it
-//        }
-
-        //Recuperando direto do Intent
         intent.getStringExtra(MainActivity.PARAMETRO)?.run {
             activityOutraBinding.recebidoTv.text = this
         }
